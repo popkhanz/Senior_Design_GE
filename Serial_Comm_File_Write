@@ -1,0 +1,96 @@
+#include <SD.h>
+
+
+#define VOLTAGE_SENSOR A0    // Voltage sensor connected to A0
+#define CURRENT_SENSOR A1    // Current sensor connected to A1
+#define RELAY_PIN 7          // Relay/MOSFET to lift ground
+#define BUZZER_PIN 6         // Buzzer pin
+#define BUTTON_PIN 5         // Button pin
+
+const int chipSelect = 10;
+
+
+File datafile;
+
+bool groundLifted = false;
+
+void setup() {
+    Serial.begin(9600);  // Initialize Serial Communication
+    while (!Serial);
+    Serial.print("Initializing SD card!");
+    
+    if (!SD.begin(chipSelect)) {
+    Serial.println("initialization failed!");
+    while (1);
+    }//stops here if SD fails 
+    Serial.println("initialization done.");
+    //checks if tester txt works 
+    if (!SD.exists("tester.txt")) {
+      //creates the txt file 
+      Serial.println("Creating tester.txt...");
+      //writes to file 
+        datafile = SD.open("tester.txt", FILE_WRITE);
+        //writes to datafile
+        if (datafile) {
+            datafile.println("Log Start");
+            datafile.close();
+        }
+    } else {//if tester.txt already works 
+        Serial.println("tester.txt exists.");//tester already exists
+    }
+
+    //pinmodes for measurements and output 
+    pinMode(RELAY_PIN, OUTPUT);
+    pinMode(BUZZER_PIN, OUTPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLUP); // Using internal pull-up resistor
+
+    digitalWrite(RELAY_PIN, LOW); // Ensure ground is initially connected
+    digitalWrite(BUZZER_PIN, LOW); // Ensure buzzer is off
+}
+
+void loop() {
+    // Check button state
+    bool buttonPressed = digitalRead(BUTTON_PIN) == LOW;
+
+    // Update relay and buzzer state
+    if (buttonPressed) {
+        digitalWrite(RELAY_PIN, HIGH);  // Open ground
+        digitalWrite(BUZZER_PIN, HIGH); // Buzzer on
+        groundLifted = true; //not grounded 
+        Serial.println("Button was pressed!");
+    } else {
+        digitalWrite(RELAY_PIN, LOW);   // Close ground
+        digitalWrite(BUZZER_PIN, LOW);  // Buzzer off
+        groundLifted = false; // grounded 
+    }
+
+    // Take measurements
+    float current = analogRead(CURRENT_SENSOR) * (5.0 / 1023.0);
+    float voltage = 0;
+
+    if (!groundLifted) {
+        voltage = analogRead(VOLTAGE_SENSOR) * (5.0 / 1023.0);
+    }
+
+    String log = "Current: " + String(current, 3) + " A";
+    if (!groundLifted) {
+        log += " | Voltage: " + String(voltage, 3) + " V";
+    }
+    log += " | Ground: ";
+    log += (groundLifted ? "Lifted" : "Connected");
+
+    Serial.println(log);
+    
+    // Write to SD
+    datafile = SD.open("tester.txt", FILE_WRITE);
+    if (datafile) {
+        datafile.println(log);
+        datafile.close();
+        Serial.println("Tester.txt wrote to file");
+    } else {
+        Serial.println("Error opening tester.txt for writing.");//tester txt couldnt be wrote into 
+    }
+
+    delay(500);
+}
+   
